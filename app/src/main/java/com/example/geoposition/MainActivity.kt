@@ -3,7 +3,6 @@ package com.example.geoposition
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
-import android.hardware.biometrics.BiometricManager.Strings
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Looper
@@ -41,7 +40,7 @@ class MainActivity : AppCompatActivity() {
             val request = LocationRequest.create()
                 .setInterval(1000)
                 .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
-        
+
         fusedClient.requestLocationUpdates(
             request,
             locationCallback,
