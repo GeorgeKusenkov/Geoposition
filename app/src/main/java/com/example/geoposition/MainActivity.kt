@@ -3,23 +3,39 @@ package com.example.geoposition
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.location.Location
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.os.Handler
 import android.os.Looper
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.example.geoposition.databinding.ActivityMainBinding
+import com.example.geoposition.databinding.ActivityMapsBinding
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.LocationSource
+import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.LatLng
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityMainBinding
+    private var locationListener: LocationSource.OnLocationChangedListener? = null
+    private var map: GoogleMap? = null
+    private lateinit var binding: ActivityMapsBinding
     private lateinit var fusedClient: FusedLocationProviderClient
+    private var needAnimateCamera = false
+    private var needMoveCamera = true
+    private val handler = Handler(Looper.getMainLooper())
+    private val cameraMovedRunnable = Runnable{
+        needMoveCamera = true
+    }
 
     private val launcher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -31,12 +47,31 @@ class MainActivity : AppCompatActivity() {
 
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(p0: LocationResult) {
-            binding.message.text = p0.lastLocation.toString()
+            p0.lastLocation?.let { location ->
+                val onLocationChanged = locationListener?.onLocationChanged(location)
+
+                binding.speed.text = getString(R.string.speed, location.speed)
+
+                    val cameraUpdate = CameraUpdateFactory.newLatLngZoom(
+                        LatLng(location.latitude, location.longitude),
+                        18f
+                    )
+                if(needMoveCamera) {
+                    if (needAnimateCamera)
+                        map?.animateCamera(cameraUpdate)
+                    else {
+                        needAnimateCamera = true
+                        map?.moveCamera(cameraUpdate)
+                    }
+                }
+            }
+//            binding.message.text = p0.lastLocation.toString()
         }
     }
 
     @SuppressLint("MissingPermission")
     private fun startLocation() {
+        map?.isMyLocationEnabled = true
             val request = LocationRequest.create()
                 .setInterval(1000)
                 .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
@@ -56,11 +91,41 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         fusedClient.removeLocationUpdates(locationCallback)
+        needAnimateCamera = false
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
+        binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        binding.mapOverlay.setOnTouchListener{ _, _ ->
+            handler.removeCallbacks(cameraMovedRunnable)
+            needMoveCamera = false
+            handler.postDelayed(cameraMovedRunnable, 5000)
+            false
+        }
+
+        val mapFragment = supportFragmentManager
+            .findFragmentById(R.id.map) as SupportMapFragment
+        mapFragment.getMapAsync{ googleMap ->
+            map = googleMap
+            checkPermissions()
+            with(googleMap.uiSettings) {
+                this.isZoomControlsEnabled = true
+                isMyLocationButtonEnabled = true
+            }
+
+            googleMap.setLocationSource(object: LocationSource {
+                override fun activate(p0: LocationSource.OnLocationChangedListener) {
+                    locationListener = p0
+                }
+
+                override fun deactivate() {
+                    locationListener = null
+                }
+            })
+        }
+
 
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
     }

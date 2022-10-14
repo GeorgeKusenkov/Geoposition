@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Geoposition</string>
     <string name="title_activity_maps">MapsActivity</string>
+    <string name="speed">%.1f m/s</string>
 </resources>
